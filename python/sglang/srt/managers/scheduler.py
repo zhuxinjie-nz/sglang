@@ -807,6 +807,7 @@ class Scheduler(
                 token_usage_low_watermark=self.server_args.prefill_delayer_token_usage_low_watermark,
             )
         # Enable preemption for priority scheduling.
+        self.try_preemption = False
         if self.enable_priority_scheduling:
             self.try_preemption = True
             if self.server_args.disable_try_preemption_by_priority:
