@@ -815,7 +815,8 @@ class Scheduler(
             )
         # Enable preemption for priority scheduling.
         self.try_preemption = (
-            self.enable_priority_scheduling and not self.server_args.disable_preemption
+            self.enable_priority_scheduling
+            and not self.server_args.disable_priority_preemption
         )
 
         self.init_new_token_ratio = min(

@@ -333,7 +333,7 @@ class ServerArgs:
     prefill_max_requests: Optional[int] = None
     schedule_policy: str = "fcfs"
     enable_priority_scheduling: bool = False
-    disable_preemption: bool = False
+    disable_priority_preemption: bool = False
     default_priority_value: Optional[int] = None
     abort_on_priority_when_disabled: bool = False
     schedule_low_priority_values_first: bool = False
@@ -3388,10 +3388,10 @@ class ServerArgs:
             help="Enable priority scheduling. Requests with higher priority integer values will be scheduled first by default.",
         )
         parser.add_argument(
-            "--disable-preemption",
+            "--disable-priority-preemption",
             action="store_true",
-            default=ServerArgs.disable_preemption,
-            help="Disable preemption.",
+            default=ServerArgs.disable_priority_preemption,
+            help="Disable priority scheduling preemption.",
         )
         parser.add_argument(
             "--default-priority-value",
