@@ -5,7 +5,7 @@ import logging
 import time
 from collections import Counter, defaultdict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from sglang.srt.disaggregation.kv_events import EventPublisherFactory, KVEventBatch
 from sglang.srt.disaggregation.utils import DisaggregationMode
@@ -34,6 +34,8 @@ from sglang.srt.utils.device_timer import DeviceTimer
 from sglang.srt.utils.scheduler_status_logger import SchedulerStatusLogger
 
 if TYPE_CHECKING:
+    from python.sglang.srt.managers.schedule_batch import Req
+    from sglang.srt.managers.schedule_policy import PrefillAdder
     from sglang.srt.managers.scheduler import EmbeddingBatchResult, Scheduler
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,27 @@ class PrefillStats:
     running_bs: int
     num_new_seqs: int  # len(can_run_list)
     num_running_reqs_by_priority: Optional[dict[int, int]] = None
+
+    @classmethod
+    def from_adder(
+        cls,
+        adder: PrefillAdder,
+        running_reqs: List[Req],
+        enable_priority_scheduling: bool = False,
+    ):
+        by_priority = (
+            dict(Counter(req.priority for req in running_reqs))
+            if enable_priority_scheduling
+            else None
+        )
+        return cls(
+            log_input_tokens=adder.log_input_tokens,
+            log_hit_tokens=adder.log_hit_tokens,
+            new_token_ratio=adder.new_token_ratio,
+            running_bs=len(running_reqs),
+            num_new_seqs=len(adder.can_run_list),
+            num_running_reqs_by_priority=by_priority,
+        )
 
 
 class KvMetrics:

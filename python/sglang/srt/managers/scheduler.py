@@ -2181,16 +2181,8 @@ class Scheduler(
         new_batch.prepare_for_extend()
 
         # Record prefill stats for logging after forward
-        num_running_reqs_by_priority = self._count_reqs_by_priority(
-            self.running_batch.reqs
-        )
-        new_batch.prefill_stats = PrefillStats(
-            log_input_tokens=adder.log_input_tokens,
-            log_hit_tokens=adder.log_hit_tokens,
-            new_token_ratio=adder.new_token_ratio,
-            running_bs=len(self.running_batch.reqs),
-            num_new_seqs=len(can_run_list),
-            num_running_reqs_by_priority=num_running_reqs_by_priority,
+        new_batch.prefill_stats = PrefillStats.from_adder(
+            adder, self.running_batch.reqs, self.enable_priority_scheduling
         )
 
         # Mixed-style chunked prefill
