@@ -29,7 +29,7 @@ from sglang.srt.utils import get_bool_env_var
 from sglang.srt.utils.gauge_histogram import GaugeHistogram
 
 if TYPE_CHECKING:
-    from python.sglang.srt.managers.schedule_batch import Req
+    from sglang.srt.managers.schedule_batch import Req
 
 SGLANG_TEST_REQUEST_TIME_STATS = get_bool_env_var("SGLANG_TEST_REQUEST_TIME_STATS")
 
