@@ -27,7 +27,7 @@ class SchedulerDllmMixin:
 
     def get_new_batch_dllm(self: Scheduler) -> Optional[ScheduleBatch]:
         """Generate a new batch for DLLM (Diffusion LLM) scheduling."""
-        if self.try_preemption:
+        if self.enable_priority_preemption:
             self.running_batch.batch_is_full = False
 
         # Early exit if batch is full or no requests available
@@ -82,7 +82,7 @@ class SchedulerDllmMixin:
         if (
             self.get_num_allocatable_reqs(running_bs) <= 0
             and self.dllm_manager.is_empty()
-            and not self.try_preemption
+            and not self.enable_priority_preemption
         ):
             self.running_batch.batch_is_full = True
             return True
@@ -209,8 +209,9 @@ class SchedulerDllmMixin:
 
             # Try preemption if batch is full
             if self.running_batch.batch_is_full:
-                if not self.try_preemption or not adder.preempt_to_schedule(
-                    req, self.server_args
+                if (
+                    not self.enable_priority_preemption
+                    or not adder.preempt_to_schedule(req, self.server_args)
                 ):
                     break
 

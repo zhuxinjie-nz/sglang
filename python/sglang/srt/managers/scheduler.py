@@ -814,7 +814,7 @@ class Scheduler(
                 ),
             )
         # Enable preemption for priority scheduling.
-        self.try_preemption = (
+        self.enable_priority_preemption = (
             self.enable_priority_scheduling
             and not self.server_args.disable_priority_preemption
         )
@@ -1998,7 +1998,7 @@ class Scheduler(
             for req in ready_grammar_requests:
                 self._add_request_to_queue(req)
 
-        if self.try_preemption:
+        if self.enable_priority_preemption:
             # Reset batch_is_full to try preemption with a prefill adder.
             self.running_batch.batch_is_full = False
 
@@ -2017,7 +2017,7 @@ class Scheduler(
         if (
             self.get_num_allocatable_reqs(running_bs) <= 0
             and self.chunked_req is not None
-            and not self.try_preemption
+            and not self.enable_priority_preemption
         ):
             self.running_batch.batch_is_full = True
             return None
@@ -2095,8 +2095,9 @@ class Scheduler(
                     self.running_batch.batch_is_full = True
 
             if self.running_batch.batch_is_full:
-                if not self.try_preemption or not adder.preempt_to_schedule(
-                    req, self.server_args
+                if (
+                    not self.enable_priority_preemption
+                    or not adder.preempt_to_schedule(req, self.server_args)
                 ):
                     break
 
