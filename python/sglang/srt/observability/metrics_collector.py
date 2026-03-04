@@ -59,6 +59,9 @@ class QueueCount:
 
     @classmethod
     def from_reqs(cls, reqs: List[Req], enable_priority_scheduling: bool = False):
+        # NOTE: If requests have priority=None (no --default-priority-value set),
+        # Counter will produce {None: N}, resulting in priority="None" Prometheus labels.
+        # Set --default-priority-value when enabling priority scheduling to avoid this.
         by_priority = (
             dict(Counter(req.priority for req in reqs))
             if enable_priority_scheduling
@@ -757,6 +760,9 @@ class SchedulerMetricsCollector:
     def _log_gauge(self, gauge, data: Union[int, float, QueueCount]) -> None:
         # Convenience function for logging to gauge.
         if isinstance(data, QueueCount):
+            # NOTE: When priority scheduling is enabled, the total is recorded under
+            # priority="" (the default label value). Per-priority breakdowns are recorded
+            # with priority="<int>". Grafana queries should use priority="" for totals.
             gauge.labels(**self.labels).set(data.total)
             if data.by_priority is not None:
                 self._known_priorities.update(data.by_priority.keys())
