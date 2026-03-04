@@ -35,7 +35,7 @@ from sglang.srt.utils.device_timer import DeviceTimer
 from sglang.srt.utils.scheduler_status_logger import SchedulerStatusLogger
 
 if TYPE_CHECKING:
-    from python.sglang.srt.managers.schedule_batch import Req
+    from sglang.srt.managers.schedule_batch import Req
     from sglang.srt.managers.schedule_policy import PrefillAdder
     from sglang.srt.managers.scheduler import EmbeddingBatchResult, Scheduler
 
