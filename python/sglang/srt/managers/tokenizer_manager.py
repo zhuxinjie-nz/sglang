@@ -1899,15 +1899,13 @@ class TokenizerManager(TokenizerCommunicatorMixin, TokenizerManagerMultiItemMixi
         )
 
         custom_labels = getattr(state.obj, "custom_labels", None)
-        labels = (
-            {**self.metrics_collector.labels, **custom_labels}
-            if custom_labels
-            else self.metrics_collector.labels
-        )
+        labels = dict(self.metrics_collector.labels)
+        if custom_labels:
+            labels.update(custom_labels)
         if self.enable_priority_scheduling:
             priority = getattr(state.obj, "priority", None)
             if priority is not None:
-                labels["priority"] = priority
+                labels["priority"] = str(priority)
         if (
             state.time_stats.first_token_time == 0.0
             and self.disaggregation_mode != DisaggregationMode.PREFILL
