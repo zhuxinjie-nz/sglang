@@ -31,6 +31,8 @@ from sglang.srt.utils import get_bool_env_var
 from sglang.srt.utils.gauge_histogram import GaugeHistogram
 
 if TYPE_CHECKING:
+    from prometheus_client import Gauge
+
     from sglang.srt.managers.schedule_batch import Req
 
 SGLANG_TEST_REQUEST_TIME_STATS = get_bool_env_var("SGLANG_TEST_REQUEST_TIME_STATS")
@@ -759,7 +761,7 @@ class SchedulerMetricsCollector:
             multiprocess_mode="mostrecent",
         )
 
-    def _log_gauge(self, gauge, data: Union[int, float, QueueCount]) -> None:
+    def _log_gauge(self, gauge: Gauge, data: Union[int, float, QueueCount]) -> None:
         # Convenience function for logging to gauge.
         if isinstance(data, QueueCount):
             # NOTE: When priority scheduling is enabled, the total is recorded under

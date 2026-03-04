@@ -538,13 +538,13 @@ class SchedulerMetricsMixin:
             return
 
         kv_metrics = KvMetrics()
-        kv_metrics.request_active_slots = self.stats.num_running_reqs
+        kv_metrics.request_active_slots = self.stats.num_running_reqs.total
         kv_metrics.request_total_slots = self.max_running_requests
         kv_metrics.kv_active_blocks = int(
             self.stats.token_usage * self.max_total_num_tokens
         )
         kv_metrics.kv_total_blocks = self.max_total_num_tokens
-        kv_metrics.num_requests_waiting = self.stats.num_queue_reqs
+        kv_metrics.num_requests_waiting = self.stats.num_queue_reqs.total
         kv_metrics.gpu_cache_usage_perc = self.stats.token_usage
         kv_metrics.gpu_prefix_cache_hit_rate = self.stats.cache_hit_rate
         kv_metrics.data_parallel_rank = self.dp_rank if self.dp_rank is not None else 0
@@ -628,7 +628,7 @@ class SchedulerMetricsMixin:
                 and self.stats.max_running_requests_under_SLO > 0
             ):
                 self.stats.utilization = max(
-                    self.stats.num_running_reqs
+                    self.stats.num_running_reqs.total
                     / self.stats.max_running_requests_under_SLO,
                     self.stats.token_usage / 0.9,
                 )
