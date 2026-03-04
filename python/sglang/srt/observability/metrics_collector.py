@@ -17,8 +17,9 @@ import dataclasses
 import logging
 import os
 import time
+from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Union
 
 from sglang.srt.environ import envs
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
@@ -26,6 +27,9 @@ from sglang.srt.observability.utils import exponential_buckets, generate_buckets
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import get_bool_env_var
 from sglang.srt.utils.gauge_histogram import GaugeHistogram
+
+if TYPE_CHECKING:
+    from python.sglang.srt.managers.schedule_batch import Req
 
 SGLANG_TEST_REQUEST_TIME_STATS = get_bool_env_var("SGLANG_TEST_REQUEST_TIME_STATS")
 
@@ -47,10 +51,26 @@ def get_histogram_conf_from_env(env_var_name: str) -> Optional[List[float]]:
 
 
 @dataclass
+class QueueCount:
+    """Holds both the total count and optional per-priority breakdown for a queue."""
+
+    total: int = 0
+    by_priority: Optional[Dict[int, int]] = None
+
+    @classmethod
+    def from_reqs(cls, reqs: List[Req], enable_priority_scheduling: bool = False):
+        by_priority = (
+            dict(Counter(req.priority for req in reqs))
+            if enable_priority_scheduling
+            else None
+        )
+        return cls(total=len(reqs), by_priority=by_priority)
+
+
+@dataclass
 class SchedulerStats:
     # Basics
-    num_running_reqs: int = 0
-    num_running_reqs_by_priority: Optional[Dict[int, int]] = None
+    num_running_reqs: QueueCount = field(default_factory=QueueCount)
     num_used_tokens: int = 0
     token_usage: float = 0.0
     pending_prealloc_token_usage: float = 0.0
@@ -58,8 +78,7 @@ class SchedulerStats:
     mamba_usage: float = 0.0
     decode_sum_seq_lens: int = 0
     gen_throughput: float = 0.0
-    num_queue_reqs: int = 0
-    num_queue_reqs_by_priority: Optional[Dict[int, int]] = None
+    num_queue_reqs: QueueCount = field(default_factory=QueueCount)
     num_grammar_queue_reqs: int = 0
     num_running_reqs_offline_batch: int = 0
     cache_hit_rate: float = 0.0
@@ -75,14 +94,10 @@ class SchedulerStats:
     num_paused_reqs: int = 0
 
     # PD disaggregation
-    num_prefill_prealloc_queue_reqs: int = 0
-    num_prefill_prealloc_queue_reqs_by_priority: Optional[Dict[int, int]] = None
-    num_prefill_inflight_queue_reqs: int = 0
-    num_prefill_inflight_queue_reqs_by_priority: Optional[Dict[int, int]] = None
-    num_decode_prealloc_queue_reqs: int = 0
-    num_decode_prealloc_queue_reqs_by_priority: Optional[Dict[int, int]] = None
-    num_decode_transfer_queue_reqs: int = 0
-    num_decode_transfer_queue_reqs_by_priority: Optional[Dict[int, int]] = None
+    num_prefill_prealloc_queue_reqs: QueueCount = field(default_factory=QueueCount)
+    num_prefill_inflight_queue_reqs: QueueCount = field(default_factory=QueueCount)
+    num_decode_prealloc_queue_reqs: QueueCount = field(default_factory=QueueCount)
+    num_decode_transfer_queue_reqs: QueueCount = field(default_factory=QueueCount)
     kv_transfer_speed_gb_s: float = 0.0
     kv_transfer_latency_ms: float = 0.0
     kv_transfer_bootstrap_ms: float = 0.0
@@ -739,20 +754,17 @@ class SchedulerMetricsCollector:
             multiprocess_mode="mostrecent",
         )
 
-    def _log_gauge(
-        self,
-        gauge,
-        data: Union[int, float],
-        by_priority_dict: Optional[Dict[int, int]] = None,
-    ) -> None:
+    def _log_gauge(self, gauge, data: Union[int, float, QueueCount]) -> None:
         # Convenience function for logging to gauge.
-        if by_priority_dict is not None:
-            self._known_priorities.update(by_priority_dict.keys())
-            for priority in self._known_priorities:
-                value = by_priority_dict.get(priority, 0)
-                labels = dict(self.labels)
-                labels["priority"] = str(priority)
-                gauge.labels(**labels).set(value)
+        if isinstance(data, QueueCount):
+            gauge.labels(**self.labels).set(data.total)
+            if data.by_priority is not None:
+                self._known_priorities.update(data.by_priority.keys())
+                for priority in self._known_priorities:
+                    value = data.by_priority.get(priority, 0)
+                    labels = dict(self.labels)
+                    labels["priority"] = str(priority)
+                    gauge.labels(**labels).set(value)
         else:
             gauge.labels(**self.labels).set(data)
 
@@ -863,11 +875,7 @@ class SchedulerMetricsCollector:
             ).inc(t)
 
     def log_stats(self, stats: SchedulerStats) -> None:
-        self._log_gauge(
-            self.num_running_reqs,
-            stats.num_running_reqs,
-            stats.num_running_reqs_by_priority,
-        )
+        self._log_gauge(self.num_running_reqs, stats.num_running_reqs)
         self._log_gauge(self.num_used_tokens, stats.num_used_tokens)
         self._log_gauge(self.token_usage, stats.token_usage)
         self._log_gauge(
@@ -877,9 +885,7 @@ class SchedulerMetricsCollector:
         self._log_gauge(self.mamba_usage, stats.mamba_usage)
         self._log_gauge(self.decode_sum_seq_lens, stats.decode_sum_seq_lens)
         self._log_gauge(self.gen_throughput, stats.gen_throughput)
-        self._log_gauge(
-            self.num_queue_reqs, stats.num_queue_reqs, stats.num_queue_reqs_by_priority
-        )
+        self._log_gauge(self.num_queue_reqs, stats.num_queue_reqs)
         self._log_gauge(self.num_grammar_queue_reqs, stats.num_grammar_queue_reqs)
         self._log_gauge(
             self.num_running_reqs_offline_batch, stats.num_running_reqs_offline_batch
@@ -894,24 +900,16 @@ class SchedulerMetricsCollector:
 
         # PD disaggregation
         self._log_gauge(
-            self.num_prefill_prealloc_queue_reqs,
-            stats.num_prefill_prealloc_queue_reqs,
-            stats.num_prefill_prealloc_queue_reqs_by_priority,
+            self.num_prefill_prealloc_queue_reqs, stats.num_prefill_prealloc_queue_reqs
         )
         self._log_gauge(
-            self.num_prefill_inflight_queue_reqs,
-            stats.num_prefill_inflight_queue_reqs,
-            stats.num_prefill_inflight_queue_reqs_by_priority,
+            self.num_prefill_inflight_queue_reqs, stats.num_prefill_inflight_queue_reqs
         )
         self._log_gauge(
-            self.num_decode_prealloc_queue_reqs,
-            stats.num_decode_prealloc_queue_reqs,
-            stats.num_decode_prealloc_queue_reqs_by_priority,
+            self.num_decode_prealloc_queue_reqs, stats.num_decode_prealloc_queue_reqs
         )
         self._log_gauge(
-            self.num_decode_transfer_queue_reqs,
-            stats.num_decode_transfer_queue_reqs,
-            stats.num_decode_transfer_queue_reqs_by_priority,
+            self.num_decode_transfer_queue_reqs, stats.num_decode_transfer_queue_reqs
         )
         self._log_gauge(self.kv_transfer_speed_gb_s, stats.kv_transfer_speed_gb_s)
         self._log_gauge(self.kv_transfer_latency_ms, stats.kv_transfer_latency_ms)
