@@ -813,7 +813,8 @@ class Scheduler(
                     else "cpu"
                 ),
             )
-        # Enable preemption for priority scheduling.
+
+        # NOTE: preemption is enabled by default for priority scheduling.
         self.enable_priority_preemption = (
             self.enable_priority_scheduling
             and not self.server_args.disable_priority_preemption
