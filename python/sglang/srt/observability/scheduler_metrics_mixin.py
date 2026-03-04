@@ -128,6 +128,7 @@ class SchedulerMetricsMixin:
             self.metrics_collector = SchedulerMetricsCollector(
                 labels=labels,
                 enable_lora=self.enable_lora,
+                enable_hierarchical_cache=self.enable_hierarchical_cache,
                 server_args=self.server_args,
             )
 
@@ -324,6 +325,7 @@ class SchedulerMetricsMixin:
             # Others
             self.calculate_utilization()
             self.update_lora_metrics()
+            self._log_hicache_stats()
             self.metrics_collector.log_stats(self.stats)
             self._emit_kv_metrics()
         self._publish_kv_events()
@@ -519,6 +521,7 @@ class SchedulerMetricsMixin:
             # Others
             self.calculate_utilization()
             self.update_lora_metrics()
+            self._log_hicache_stats()
             self.metrics_collector.log_stats(self.stats)
             self._emit_kv_metrics()
         self._publish_kv_events()
@@ -579,6 +582,20 @@ class SchedulerMetricsMixin:
         if events:
             batch = KVEventBatch(ts=time.time(), events=events)
             self.kv_event_publisher.publish(batch)
+
+    def _log_hicache_stats(self: Scheduler):
+        """Populate HiCache host-tier stats on self.stats.
+
+        These are pushed to Prometheus by SchedulerMetricsCollector.log_stats().
+        """
+        if not self.enable_hierarchical_cache:
+            return
+
+        host_pool = self.tree_cache.token_to_kv_pool_host
+        self.stats.hicache_host_used_tokens = (
+            host_pool.size - host_pool.available_size()
+        )
+        self.stats.hicache_host_total_tokens = host_pool.size
 
     def update_lora_metrics(self: Scheduler):
         """Update LoRA pool metrics for monitoring and autoscaling."""
