@@ -41,6 +41,20 @@ class TestPriorityScheduling(CustomTestCase):
                 "--max-queued-requests",  # Enforce max queued request number is 3
                 "3",
                 "--enable-priority-scheduling",  # Enable priority scheduling
+                "--valid-priority-values",
+                "0",
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "10",
+                "15",
+                "20",
+                "50",
+                "100",
             ),
             return_stdout_stderr=(cls.stdout, cls.stderr),
         )

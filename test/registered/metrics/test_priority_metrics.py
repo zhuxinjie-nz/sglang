@@ -93,7 +93,11 @@ class TestPriorityMetrics(CustomTestCase):
                 "--default-priority-value",
                 "0",
                 "--valid-priority-values",
-                "-1 0 1 5 10",
+                "-1",
+                "0",
+                "1",
+                "5",
+                "10",
             ],
         )
 
