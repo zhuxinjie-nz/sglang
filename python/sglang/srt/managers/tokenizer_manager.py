@@ -122,6 +122,8 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 _REQUEST_STATE_WAIT_TIMEOUT = envs.SGLANG_REQUEST_STATE_WAIT_TIMEOUT.get()
 
 logger = logging.getLogger(__name__)
+VALID_PRIORITY_MAX = int(os.getenv("SGLANG_VALID_PRIORITY_MAX", 5))
+VALID_PRIORITY_MIN = int(os.getenv("SGLANG_VALID_PRIORITY_MIN", 0))
 
 
 @dataclasses.dataclass
@@ -235,7 +237,6 @@ class TokenizerManager(TokenizerCommunicatorMixin, TokenizerManagerMultiItemMixi
         self.max_req_input_len = None  # Will be set later in engine.py
         self.enable_priority_scheduling = server_args.enable_priority_scheduling
         self.default_priority_value = server_args.default_priority_value
-        self.valid_priority_values = set(server_args.valid_priority_values)
         self.schedule_low_priority_values_first = (
             server_args.schedule_low_priority_values_first
         )
@@ -2445,17 +2446,22 @@ class TokenizerManager(TokenizerCommunicatorMixin, TokenizerManagerMultiItemMixi
 
     def _set_priority(self, obj: Union[GenerateReqInput, EmbeddingReqInput]):
         """Validates the request priority and assigns a default or fallback value if it is missing or invalid."""
-        if self.enable_priority_scheduling:
-            if obj.priority is None:
-                obj.priority = self.default_priority_value
+        if not self.enable_priority_scheduling:
+            return
 
-            if obj.priority is None or obj.priority not in self.valid_priority_values:
-                if self.schedule_low_priority_values_first:
-                    obj.priority = max(self.valid_priority_values, default=sys.maxsize)
-                else:
-                    obj.priority = min(
-                        self.valid_priority_values, default=-sys.maxsize - 1
-                    )
+        if obj.priority is None:
+            obj.priority = self.default_priority_value
+
+        is_valid = (
+            obj.priority is not None
+            and VALID_PRIORITY_MIN <= obj.priority <= VALID_PRIORITY_MAX
+        )
+
+        if not is_valid:
+            if self.schedule_low_priority_values_first:
+                obj.priority = VALID_PRIORITY_MAX
+            else:
+                obj.priority = VALID_PRIORITY_MIN
 
 
 class ServerStatus(Enum):

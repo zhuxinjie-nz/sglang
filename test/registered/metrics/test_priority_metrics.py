@@ -1,3 +1,4 @@
+import os
 import unittest
 from typing import Dict, List
 from unittest.mock import Mock
@@ -92,13 +93,12 @@ class TestPriorityMetrics(CustomTestCase):
                 "--enable-priority-scheduling",
                 "--default-priority-value",
                 "0",
-                "--valid-priority-values",
-                "-1",
-                "0",
-                "1",
-                "5",
-                "10",
             ],
+            env={
+                **os.environ,
+                "SGLANG_VALID_PRIORITY_MAX": "10",
+                "SGLANG_VALID_PRIORITY_MIN": "-1",
+            },
         )
 
     @classmethod
@@ -223,16 +223,16 @@ class TestPriorityMetrics(CustomTestCase):
             f"Expected priority='0' from default, got: {priority_values}",
         )
 
-    def test_valid_priority_values(self):
-        """Tests the validation and handling logic for the valid priority values parameter.set valid-priority-values: -1 0 1 5 10"""
+    def test_valid_priority(self):
+        """Tests the validation and handling logic for the valid priority, parameter.set valid-priority: -1 - 10"""
 
-        # Send request with priority 6 — should get priority -1
+        # Send request with priority 11 — should get priority -1
         response = requests.post(
             f"{DEFAULT_URL_FOR_TEST}/generate",
             json={
                 "text": "Hello world",
                 "sampling_params": {"temperature": 0, "max_new_tokens": 5},
-                "priority": 6,
+                "priority": 11,
             },
         )
         self.assertEqual(response.status_code, 200)
